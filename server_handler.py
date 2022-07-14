@@ -34,8 +34,7 @@ def createNewAttendance(facultyId):
 
     if(r.ok):
         data = r.json()
-        print(data['facultyName'])
-        return data['attendanceId']
+        return data['attendanceId'], data['facultyName']
 
 
 # ==========================================
@@ -49,6 +48,5 @@ def markAttendance(attendanceId, studentId, recognizedPeople):
 
     if(r.ok):
         data = r.json()
-        print(data['userName'])
         recognizedPeople.add(studentId)
-        return studentId
+        return studentId, data['userName']

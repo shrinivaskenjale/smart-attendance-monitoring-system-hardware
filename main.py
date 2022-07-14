@@ -7,6 +7,8 @@ import numpy as np
 import face_recognition
 import os
 import shutil
+import Adafruit_CharLCD as LCD
+import RPi.GPIO as GPIO
 
 
 from server_handler import createNewAttendance, markAttendance
@@ -19,7 +21,19 @@ from camera_handler import showLabel
 # ==========================================
 if(__name__ == "__main__"):
 
+    GPIO.setmode(GPIO.BCM)
+
+    lcd1 = 12
+    lcd2 = 7
+    lcd3 = 8
+    lcd4 = 25
+    lcd5 = 24
+    lcd6 = 23
+
+    lcd = LCD.Adafruit_CharLCD(lcd1, lcd2, lcd3, lcd4, lcd5, lcd6, 0, 16, 2)
+
     currentFacultyId = None
+    currentFacultyName = None
     currentAttendanceId = None
     recognizedPeople = set()
 
@@ -33,28 +47,44 @@ if(__name__ == "__main__"):
 
     os.mkdir(imagesPath)
 
+    # Downloading images
+    lcd.clear()
+    lcd.message('DOWNLOADING\nIMAGES...')
     downloadImages(imagesPath)
 
     images, personIds, userTypes = fetchImages(imagesPath)
 
     # Encoding all stored images
+    lcd.clear()
+    lcd.message('GENERATING FACE\nENCODINGS...')
     encodeListKnown = faceEncodings(images)
-    print('Starting face recognition...')
 
-    # starting camera to capture video stream
-    # 0 = internal camera
-    # 1 = external camera
-    cam = cv2.VideoCapture(0)
+    # print('Starting face recognition...')
+    lcd.clear()
+    lcd.message('     READY!\n----------------')
+
+    
+    
 
     while True:
+        
+        # starting camera to capture video stream
+        # 0 = internal camera
+        # 1 = external camera
+        cam = cv2.VideoCapture(0)
+        
         # read a video frame by frame
         # read() returns tuple in which 1st item is boolean value
         # either True or False and 2nd item is frame of the video.
         # read() returns False when video is ended so
         # no frame is readed and error will be generated.
         ret, frame = cam.read()
+        
+        # release camera
+        cam.release()
 
         waitingDelay = 1
+        lcdUpdate=False
 
         # resizing captured frame
         resizedFrame = cv2.resize(frame, (0, 0), None, 0.25, 0.25)
@@ -91,43 +121,62 @@ if(__name__ == "__main__"):
                 userType = userTypes[matchIndex]
 
                 # give label on the face
-                showLabel(frame, faceLoc, id)
+                # showLabel(frame, faceLoc, id)
 
                 # markAttendanceInCSV(id, attendancePath)
 
                 # stop the attendance
                 if(currentFacultyId == id and len(recognizedPeople) > 0):
-
+                    # print('Attendance Stopped')
+                    lcd.clear()
+                    lcd.message(f'THANK YOU\nCOUNT : {len(recognizedPeople)}')
+                    waitingDelay = 10000
+                    lcdUpdate=True
                     currentAttendanceId = None
                     currentFacultyId = None
+                    currentFacultyName=None
                     recognizedPeople = set()
-                    print('Attendance Stopped')
-                    waitingDelay = 30000
 
                 # create new attendance
                 elif(userType == 'faculty' and currentAttendanceId is None):
 
-                    currentAttendanceId = createNewAttendance(id)
+                    currentAttendanceId, facultyName = createNewAttendance(id)
                     if(currentAttendanceId):
+                        firstName, lastName = facultyName.split()
+                        lcd.clear()
+                        lcd.message(f'{firstName}\n{lastName}'.upper())
                         currentFacultyId = id
-                        waitingDelay = 30000
+                        currentFacultyName = f'{firstName[0]} {lastName}'.upper()
+                        waitingDelay = 10000
+                        lcdUpdate=True
 
                 # verify and mark attendance of student
                 elif(userType == 'student' and currentAttendanceId and (id not in recognizedPeople)):
 
-                    currentPersonId = markAttendance(
+                    currentPersonId, studentName = markAttendance(
                         currentAttendanceId, id, recognizedPeople)
                     if(currentPersonId):
-                        waitingDelay = 5000
+                        firstName, lastName = studentName.split()
+                        lcd.clear()
+                        lcd.message(f'{firstName}\n{lastName}'.upper())
+                        waitingDelay = 3000
+                        lcdUpdate=True
 
         # display current frame
-        cv2.imshow('Smart Attendance Monitoring System', frame)
+        #cv2.imshow('Smart Attendance Monitoring System', frame)
         if (cv2.waitKey(waitingDelay) == 13):
             break
 
         # show updated present count
-        print(len(recognizedPeople))
+        if(lcdUpdate):
+            if(currentFacultyId is not None):
+                # print(len(recognizedPeople))
+                lcd.clear()
+                lcd.message(
+                    f'{currentFacultyName}\nCOUNT : {len(recognizedPeople)}')
+            else:
+                lcd.clear()
+                lcd.message('     READY!\n----------------')
 
     # release all resources
-    cam.release()
     cv2.destroyAllWindows()

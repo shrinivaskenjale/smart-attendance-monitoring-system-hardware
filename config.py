@@ -1,4 +1,4 @@
-PRODUCTION_MODE = False
+PRODUCTION_MODE = True
 
 
 if(PRODUCTION_MODE is True):
@@ -8,4 +8,3 @@ else:
 
 
 print(BACKEND_BASE_URL)
- 
